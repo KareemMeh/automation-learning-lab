@@ -8,8 +8,60 @@
     environment:
       - GENERIC_TIMEZONE=Africa/Cairo
       - TZ=Africa/Cairo
+      - WEBHOOK_URL= http://localhost:5678/
     volumes:
       - n8n_data:/home/node/.n8n
+    networks:
+      - ai-agent-net
+
+  agent-postgres:
+    image: postgres:17-alpine
+    container_name: agent-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_DB: agent_memory
+      POSTGRES_USER: agent_user
+      POSTGRES_PASSWORD: ${AGENT_POSTGRES_PASSWORD:?Set AGENT_POSTGRES_PASSWORD in .env}
+    volumes:
+      - agent_postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai-agent-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_user -d agent_memory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  auth-gateway:
+    build:
+      context: ./auth-gateway
+      dockerfile: Dockerfile
+    container_name: customer-auth-gateway
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      DATABASE_URL: postgresql://agent_user:${AGENT_POSTGRES_PASSWORD:?Set AGENT_POSTGRES_PASSWORD in .env}@agent-postgres:5432/agent_memory
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      N8N_BASE_URL: http://n8n:5678
+    volumes: 
+      - ./auth-gateway/static:/app/static
+    depends_on:
+      agent-postgres:
+        condition: service_healthy
+    networks:
+      - ai-agent-net
 
 volumes:
   n8n_data:
+    external: true
+    name: n8n_n8n_data
+
+  agent_postgres_data:
+
+networks:
+  ai-agent-net:
+    external: true

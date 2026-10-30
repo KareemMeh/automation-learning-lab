@@ -1,0 +1,6 @@
+﻿fastapi
+uvicorn[standard]
+psycopg[binary]
+pwdlib[argon2]
+PyJWT
+httpx
